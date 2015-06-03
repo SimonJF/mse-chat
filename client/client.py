@@ -1,7 +1,8 @@
 # Client: Connects to server, authenticates, offers choice to either
 # create or join room.
 MSG_LEN = 1024
-
+ADDR = "127.0.0.1"
+PORT = 9002
 
 class NetworkThread(Thread):
 
@@ -10,12 +11,15 @@ class NetworkThread(Thread):
         self.socket = socket
 
     def receive_message():
-        pass
+        received = self.socket.recv(MSG_LEN)
 
     def handle_message(msg):
         strs = string.split(msg, ":")
         header = strs[0]
         payload = string.join(msg, ":")
+        if header == "chat":
+            handle_chat_message(msg)
+
 
     def handle_chat_message(msg):
         # Format... <Name>:Msg
@@ -44,32 +48,36 @@ class NetworkThread(Thread):
                 return
 
 
+class Client(object):
+    # room_name, user
 
-def send_message(socket, msg):
-    total_send = 0
-    while total_sent < len(msg):
-        ssent = self.sock.send(msg[total_sent:])
-        if sent == 0:
-            raise RuntimeError("Socket connection broken")
-        total_sent = total_sent + sent
+    def send_message(self, msg):
+        total_send = 0
+        while total_sent < len(msg):
+            sent = self.socket.send(msg[total_sent:])
+            if sent == 0:
+                raise RuntimeError("Socket connection broken")
+            total_sent = total_sent + sent
 
-def lobby_loop():
-    pass
+    def lobby_loop():
+        while True:
+            input = raw_get(self.name + " @ Lobby >")
 
-def room_loop():
-    pass
 
-def join_room():
-    pass
+    def room_loop():
+        pass
 
-def authenticate(user, password, socket):
-    pass
+    def join_room(self, msg):
+        self.send_message("JOIN:" + msg)
 
-def connect_to_server():
-    pass
+    def authenticate(user, password, socket):
+        pass
 
 def main():
-    pass
+   sock = socket.create_connection((ADDR, PORT))
+   nt = NetworkThread(sock)
+   nt.start()
+   lobby_loop()
 
 if __name__ == "__main__":
     main()
