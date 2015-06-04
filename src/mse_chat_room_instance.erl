@@ -10,13 +10,13 @@
 %%% API              %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
 start_link(Args) ->
-  gen_server:start_link(?MODULE, Args).
+  gen_server:start_link(?MODULE, Args, []).
 
-register_client(ClientName, ClientPID) ->
-  gen_server:call(?MODULE, {register_client, ClientName, ClientPID}).
+register_client(RoomPID, ClientName, ClientPID) ->
+  gen_server:call(RoomPID, {register_client, ClientName, ClientPID}).
 
-deregister_client(ClientName) ->
-  gen_server:call(?MODULE, {deregister_client, ClientName}).
+deregister_client(RoomPID, ClientName) ->
+  gen_server:call(RoomPID, {deregister_client, ClientName}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal         %%%
@@ -56,7 +56,7 @@ handle_call({deregister_client, Name}, _From, State) ->
   NewState = handle_deregister_client(Name, State),
   {reply, ok, NewState};
 handle_call(Msg, _From, State) ->
-  error_logger:error_message("Unhandled call in client ~p: ~p~n",
+  error_logger:error_msg("Unhandled call in client ~p: ~p~n",
                              [self(), Msg]),
   {noreply, State}.
 
@@ -64,13 +64,13 @@ handle_cast({chat_message, ClientName, Message}, State) ->
   handle_broadcast_message(ClientName, Message, State),
   {noreply, State};
 handle_cast(Msg, State) ->
-  error_logger:error_message("Unhandled cast in client ~p: ~p~n",
+  error_logger:error_msg("Unhandled cast in client ~p: ~p~n",
                              [self(), Msg]),
   {noreply, State}.
 
 
 handle_info(Msg, State) ->
-  error_logger:error_message("Unhandled info in client ~p: ~p~n",
+  error_logger:error_msg("Unhandled info in client ~p: ~p~n",
                              [self(), Msg]),
   {noreply, State}.
 

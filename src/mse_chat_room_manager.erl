@@ -11,7 +11,7 @@
 %%%   API              %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 start_link() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 add_room(RoomName, RoomPID) ->
   gen_server:cast(?MODULE, {add_room, RoomName, RoomPID}).

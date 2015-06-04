@@ -3,6 +3,7 @@
 -define(MAXT, 3600).
 -define(MAXR, 4).
 
+-export([init/1, start_link/0]).
 
 %%% Supervisor of TCP server, client registry,
 %%% and client thread supervisor

@@ -1,6 +1,6 @@
 -module(mse_chat_client_sup).
 -behaviour(supervisor).
--define(MAXT, 3600).
+-define(MAXT, 4).
 -define(MAXR, 4).
 
 -export([start_link/0, new_client/2, init/1]).

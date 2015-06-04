@@ -51,9 +51,8 @@ broadcast_client_joined(ClientName, State) ->
 broadcast_new_topic(Topic, State) ->
   ClientList = orddict:to_list(State#chat_room_state.room_members),
   RoomName = State#chat_room_state.room_topic,
-  lists:foreach(fun(_, Pid) ->
-                    mse_chat_client:send_new_topic(RoomName,
-                                                   Topic, ClientName) end,
+  lists:foreach(fun(ClientName, Pid) ->
+                    mse_chat_client:send_new_topic(Topic, ClientName) end,
                 ClientList),
   ok.
 
