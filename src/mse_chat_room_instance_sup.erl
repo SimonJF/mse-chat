@@ -12,8 +12,8 @@
 start_link() ->
   supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-create_new_room(Args) ->
-  supervisor:start_child(?SERVER, [Args]).
+create_new_room(RoomName) ->
+  supervisor:start_child(?SERVER, [RoomName]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% Callbacks        %%%

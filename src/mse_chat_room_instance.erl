@@ -1,5 +1,5 @@
 -module(mse_chat_room_instance).
-
+-behaviour(gen_server).
 -compile(export_all).
 
 -record(room_state, {room_name,
@@ -9,14 +9,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% API              %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
-start_link(Args) ->
-  gen_server:start_link(?MODULE, Args, []).
+start_link([RoomName]) ->
+  gen_server:start_link(?MODULE, , []).
 
 register_client(RoomPID, ClientName, ClientPID) ->
   gen_server:call(RoomPID, {register_client, ClientName, ClientPID}).
 
 deregister_client(RoomPID, ClientName) ->
   gen_server:call(RoomPID, {deregister_client, ClientName}).
+
+broadcast_message(RoomPID, ClientName, Message) ->
+  gen_server:cast(RoomPID, {chat_message, ClientName, Message}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal         %%%
@@ -45,8 +48,8 @@ handle_broadcast_message(SenderName, Message, State) ->
 %%% Callbacks        %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
 
-init(_Args) ->
-  State = #room_state{room_members=orddict:new()},
+init([RoomName]) ->
+  State = #room_state{room_name=RoomName, room_members=orddict:new()},
   {ok, State}.
 
 handle_call({register_client, Name, PID}, _From, State) ->
