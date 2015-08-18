@@ -10,7 +10,8 @@
 %%% API              %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
 start_link([RoomName]) ->
-  gen_server:start_link(?MODULE, , []).
+  io:format("In chat room instance start~n"),
+  gen_server:start_link(?MODULE, [RoomName], []).
 
 register_client(RoomPID, ClientName, ClientPID) ->
   gen_server:call(RoomPID, {register_client, ClientName, ClientPID}).
@@ -35,12 +36,11 @@ handle_deregister_client(Name, State) ->
   State#room_state{room_members=NewRoomMembers}.
 
 handle_broadcast_message(SenderName, Message, State) ->
+  error_logger:info_msg("Broadcasting chat message ~p from ~p~n", [Message, SenderName]),
+  [_|[MessageContents|_XS]] = string:tokens(Message, ":"),
   RoomMembers = orddict:to_list(State#room_state.room_members),
-  lists:foreach(fun({Name, Endpoint}) ->
-                    if Name =/= SenderName ->
-                      mse_chat_client:message(Endpoint, {chat_message, SenderName, Message});
-                      Name == SenderName -> ok
-                    end
+  lists:foreach(fun({_Name, Endpoint}) ->
+                      mse_chat_client:chat_message(Endpoint, SenderName, MessageContents)
                     end,
                RoomMembers).
 

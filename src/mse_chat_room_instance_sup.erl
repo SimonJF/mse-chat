@@ -19,8 +19,8 @@ create_new_room(RoomName) ->
 %%% Callbacks        %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
 init(_Args) ->
-  Room = {mse_chat_room, {mse_chat_room, start_link, []},
-            temporary, 2000, worker, [mse_chat_room]},
+  Room = {mse_chat_room_instance, {mse_chat_room_instance, start_link, []},
+            temporary, 2000, worker, [mse_chat_room_instance]},
   Children = [Room],
   RestartStrategy = {simple_one_for_one, 0, 1},
   {ok, {RestartStrategy, Children}}.
