@@ -1,11 +1,11 @@
 -module(mse_chat_client).
 
--behaviour(gen_server).
+-behaviour(ssa_gen_server).
 
 -record(client_state, {client_id,
                        client_name,
                        client_socket,
-                       room_pid
+                       monitor_pid
                       }).
 
 % FIXME
@@ -16,24 +16,23 @@
 %%% API              %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
 start_link(ClientID, Socket) ->
-  gen_server:start_link(?MODULE, [ClientID, Socket], []).
+  ssa_gen_server:start_link(?MODULE, [ClientID, Socket], []).
 
-set_name(PID, Name) ->
-  gen_server:call(PID, {set_name, Name}).
+found_room_pid(ConvKey, RoomName, RoomPID) ->
+  conversation:send(ConvKey, ["ClientThread"], "roomPID", [], [RoomName, RoomPID]).
 
-found_room_pid(ActorPID, RoomName, RoomPID) ->
-  % Join room
-  gen_server:cast(ActorPID, {room_pid, RoomName, RoomPID}).
+room_not_found(ConvKey, RoomName) ->
+  conversation:send(ConvKey, ["ClientThread"], "roomNotFound", [], [RoomName]).
 
-room_not_found(ActorPID, RoomName) ->
-  % Join room
-  gen_server:cast(ActorPID, {room_not_found, RoomName}).
+room_exists(ConvKey, RoomName) ->
+  conversation:send(ConvKey, ["ClientThread"], "roomExists", [], [RoomName]).
 
-room_create_response(ActorPID, RoomName, IsSuccess) ->
-  gen_server:cast(ActorPID, {room_create_response, RoomName, IsSuccess}).
+room_create_success(ConvKey, RoomName) ->
+  conversation:send(ConvKey, ["ClientThread"], "createRoomSuccess", [], [RoomName]).
 
-chat_message(ActorPID, SenderName, Message) ->
-  gen_server:cast(ActorPID, {chat_message, SenderName, Message}).
+chat_message(ConvKey, SenderName, Message) ->
+  conversation:send(ConvKey, ["ClientThread"], "incomingChatMessage",
+                    [], [SenderName, Message]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal         %%%
@@ -44,6 +43,7 @@ send_message(Message, State) ->
   gen_tcp:send(Socket, Message).
 
 handle_message(Message, State) ->
+  MonitorPID = State#client_state.monitor_pid,
   StrippedMessage = string:strip(Message),
   SplitMessage = string:tokens(StrippedMessage, ":"),
   [Command|PacketRemainder] = SplitMessage,
@@ -53,18 +53,25 @@ handle_message(Message, State) ->
          [Username|[Password|_Rest]] = PacketRemainder,
          handle_auth(Username, Password, State);
        Command == "CHAT" ->
-         ChatMessage = string:join(SplitMessage, ":"),
-         handle_chat(ChatMessage, State),
+         [_|SplitChatMessage] = SplitMessage,
+         ChatMessage = string:join(SplitChatMessage, ":"),
+         conversation:become(MonitorPID, chat_session, "ClientThread",
+                             chat, [ChatMessage]),
          State;
        Command == "CREATE" ->
          [RoomName|_Rest] = PacketRemainder,
-         handle_create_room(RoomName, State),
+         conversation:become(MonitorPID, main_thread, "ClientThread",
+                             create_room, [RoomName]),
          State;
        Command == "JOIN" ->
          [RoomName|_Rest] = PacketRemainder,
-         handle_join_room(RoomName, State);
+         conversation:become(MonitorPID, main_thread, "ClientThread",
+                             join_room, [RoomName]),
+         State;
        Command == "LEAVE" ->
-         handle_leave_room(State);
+         conversation:become(MonitorPID, chat_session, "ClientThread",
+                             leave_room, []),
+         State;
        true ->
          error_logger:warning_msg("Unhandled TCP message: ~p~n", [Command]),
          State
@@ -76,99 +83,124 @@ make_client_data(State) ->
   #client_data{client_name=ClientName, client_pid=self()}.
 
 
-handle_leave_room(State) ->
-  RoomPID = State#client_state.room_pid,
+handle_leave_room(ConvKey, State) ->
   ClientName = State#client_state.client_name,
-  mse_chat_room_instance:deregister_client(RoomPID, ClientName),
-  State#client_state{room_pid=undefined}.
+  conversation:subsession_complete(ConvKey, ok),
+  State.
 
 handle_auth(Username, _Password, State) ->
   % TEMP TEMP TEMP
   send_message("AUTH_OK", State),
   State#client_state{client_name=Username}.
 
- %if Username == "simon" andalso Password == "password" ->
- %     send_message("AUTH_OK", State),
- %     State#client_state{client_name=Username};
- %   true ->
- %     send_message("AUTH_ERROR", State),
- %     State
- %end.
-
-handle_chat(ChatMessage, State) ->
+handle_chat(ConvKey, ChatMessage, State) ->
   ClientName = State#client_state.client_name,
-  RoomPID = State#client_state.room_pid,
-  mse_chat_room_instance:broadcast_message(RoomPID, ClientName, ChatMessage),
+  mse_chat_room_instance:broadcast_message(ConvKey, ClientName, ChatMessage),
   State.
 
 % Send join room request
-handle_join_room(RoomName, State) ->
-  mse_chat_room_manager:get_room(RoomName),
-  State.
+handle_join_room(ConvKey, RoomName) ->
+  mse_chat_room_manager:get_room(ConvKey, RoomName).
 
-% Receive room found response
-handle_room_pid(RoomName, RoomPID, State) ->
-  % We need to register, then we're golden.
-  ClientName = State#client_state.client_name,
-  % TODO: self() isn't going to work with the session type server...
-  % Then again we won't be working with PIDs, so eh.
-  mse_chat_room_instance:register_client(RoomPID, ClientName, self()),
-  send_message("JOINED:" ++ RoomName, State),
-  State#client_state{room_pid=RoomPID}.
-
-handle_room_not_found(RoomName, State) ->
-  send_message("JOIN_FAIL:" ++ RoomName, State),
-  State.
-
-handle_create_room(RoomName, State) ->
-  mse_chat_room_manager:create_room(RoomName),
+handle_create_room(ConvKey, RoomName) ->
+  mse_chat_room_manager:create_room(ConvKey, RoomName),
   ok.
-
-handle_create_room_response(RoomName, IsSuccess, State) ->
-  if IsSuccess ->
-       send_message("CREATED:" ++ RoomName, State);
-     not IsSuccess ->
-       send_message("CREATE_FAIL:" ++ RoomName, State)
-  end.
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% Callbacks        %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
 
-init([ClientID, ClientSocket]) ->
-  State = #client_state{client_id=ClientID,
-                        client_name=undefined,
-                        client_socket=ClientSocket},
-  io:format("In MSE chat client init~n"),
-  % Start session here.
-  inet:setopts(ClientSocket, [{active, true}]),
+ssactor_join(_, _, _, State) ->
+  error_logger:info_msg("Accepted invitation~n"),
+  {accept, State}.
+
+ssactor_conversation_established("ChatServer", "ClientThread", _CID, ConvKey, State) ->
+  error_logger:info_msg("Conv established~n"),
+  conversation:register_conversation(main_thread, ConvKey),
+  {ok, State};
+ssactor_conversation_established("ChatSession", "ClientThread", _CID, ConvKey, State) ->
+  conversation:register_conversation(chat_session, ConvKey),
   {ok, State}.
 
-handle_call({set_name, Name}, _From, State) ->
-  NewState = State#client_state{client_name=Name},
-  {reply, ok, NewState};
+
+ssactor_conversation_error(_PN, _RN, Error, State) ->
+  error_logger:info_msg("Error setting up session: ~p~n", [Error]),
+  {ok, State}.
+
+ssactor_conversation_ended(CID, _Reason, State) ->
+  {ok, State}.
+
+
+ssactor_init([ClientID, ClientSocket], MonitorPID) ->
+  State = #client_state{client_id=ClientID,
+                        client_name=undefined,
+                        client_socket=ClientSocket,
+                        monitor_pid=MonitorPID
+                       },
+  io:format("In MSE chat client init~n"),
+  % Start session here.
+  conversation:start_conversation(MonitorPID, "ChatServer", "ClientThread"),
+  inet:setopts(ClientSocket, [{active, true}]),
+  State.
+
+ssactor_handle_call(_, _, _, _, Msg, _, State, _) ->
+  error_logger:error_msg("Unhandled ssactor call in client ~p: ~p~n",
+                             [self(), Msg]),
+  {noreply, State}.
+
+%%% Out-of-room actions
+ssactor_handle_message("ChatServer", "ClientThread", _, _, "createRoomSuccess",
+                       [RoomName], State, _ConvKey) ->
+  send_message("CREATED:" ++ RoomName, State),
+  {ok, State};
+ssactor_handle_message("ChatServer", "ClientThread", _, _, "roomExists", [RoomName],
+                       State, _ConvKey) ->
+  send_message("CREATE_FAIL:" ++ RoomName, State),
+  {ok, State};
+ssactor_handle_message("ChatServer", "ClientThread", _, _, "roomNotFound", [RoomName],
+                       State, _ConvKey) ->
+  send_message("JOIN_FAIL:" ++ RoomName, State),
+  {ok, State};
+ssactor_handle_message("ChatServer", "ClientThread", _, _, "roomPID", [RoomName, RoomPID],
+                       State, ConvKey) ->
+  conversation:start_subsession(ConvKey, "ChatSession", ["ClientThread"],
+                                [{"ChatRoom", RoomPID}]),
+  send_message("JOINED:" ++ RoomName, State),
+  {ok, State};
+%%% In-room actions
+ssactor_handle_message("ChatSession", "ClientThread", _, _, "incomingChatMessage",
+                       [Username, Message], State, _ConvKey) ->
+  send_message("CHAT_MESSAGE" ++ ":" ++ Username ++ ":" ++ Message, State),
+  {ok, State}.
+
+
+ssactor_become("ChatServer", "ClientThread", create_room, [RoomName],
+               ConvKey, State) ->
+  handle_create_room(ConvKey, RoomName),
+  {ok, State};
+ssactor_become("ChatServer", "ClientThread", join_room, [RoomName],
+               ConvKey, State) ->
+  handle_join_room(ConvKey, RoomName),
+  {ok, State};
+ssactor_become("ChatSession", "ClientThread", leave_room, [],
+               ConvKey, State) ->
+  NewState = handle_leave_room(ConvKey, State),
+  {ok, NewState};
+ssactor_become("ChatSession", "ClientThread", chat, [Message],
+               ConvKey, State) ->
+  handle_chat(ConvKey, Message, State),
+  {ok, State}.
+
+
+ssactor_subsession_complete(_, _, State, _) -> {ok, State}.
+ssactor_subsession_failed(_, _, State, _) -> {ok, State}.
+ssactor_subsession_setup_failed(_, _, State, _) -> {ok, State}.
+
 handle_call(Msg, _From, State) ->
   error_logger:error_msg("Unhandled call in client ~p: ~p~n",
                              [self(), Msg]),
   {noreply, State}.
 
-handle_cast({room_create_response, RoomName, IsSuccess}, State) ->
-  handle_create_room_response(RoomName, IsSuccess, State),
-  {noreply, State};
-handle_cast({chat_msg, SenderName, Msg}, State) ->
-  send_message("INCOMING_CHAT:" ++ SenderName ++ ":" ++ Msg, State),
-  {noreply, State};
-handle_cast({room_not_found, RoomName}, State) ->
-  handle_room_not_found(RoomName, State),
-  {noreply, State};
-handle_cast({room_pid, RoomName, RoomPID}, State) ->
-  NewState = handle_room_pid(RoomName, RoomPID, State),
-  {noreply, NewState};
-handle_cast({chat_message, Sender, Message}, State) ->
-  Msg = "CHAT_MESSAGE:" ++ Sender ++ ":" ++ Message,
-  send_message(Msg, State),
-  {noreply, State};
 handle_cast(Msg, State) ->
   error_logger:error_msg("Unhandled cast in client ~p: ~p~n",
                              [self(), Msg]),
@@ -176,7 +208,7 @@ handle_cast(Msg, State) ->
 
 
 handle_info({tcp, _S, Data}, State) ->
-  error_logger:info_msg("Received TCP message: ~p~n", [Data]),
+  %error_logger:info_msg("Received TCP message: ~p~n", [Data]),
   %gen_tcp:send(S, "AUTH_OK"),
   handle_message(Data, State);
 handle_info(Msg, State) ->

@@ -1,5 +1,5 @@
 -module(mse_chat_room_manager).
--behaviour(gen_server).
+-behaviour(ssa_gen_server).
 
 -compile(export_all).
 
@@ -10,17 +10,16 @@
 %%%   API              %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 start_link() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+  ssa_gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-get_room_names() ->
-  gen_server:call(?MODULE, get_room_names).
+get_room_names(ConvKey) ->
+  conversation:call(ConvKey, "RoomRegistry", "listRooms", [], []).
 
-get_room(RoomName) ->
-  gen_server:cast(?MODULE, {get_room, RoomName, self()}).
+get_room(ConvKey, RoomName) ->
+  conversation:send(ConvKey, ["RoomRegistry"], "lookupRoom", [], [RoomName]).
 
-create_room(RoomName) ->
-  gen_server:cast(?MODULE, {create_room, RoomName, self()}).
-
+create_room(ConvKey, RoomName) ->
+  conversation:send(ConvKey, ["RoomRegistry"], "createRoom", [], [RoomName]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal Functions %%%
@@ -32,40 +31,67 @@ add_room(RoomName, RoomPID, State) ->
   NewRoomDict = orddict:store(RoomName, RoomPID, RoomDict),
   State#room_manager_state{rooms=NewRoomDict}.
 
-handle_get_room(RoomName, ActorPID, State) ->
+handle_get_room(ConvKey, RoomName, State) ->
   RoomDict = State#room_manager_state.rooms,
   case orddict:find(RoomName, RoomDict) of
     {ok, RoomPID} ->
-      mse_chat_client:found_room_pid(ActorPID, RoomName, RoomPID);
+      mse_chat_client:found_room_pid(ConvKey, RoomName, RoomPID);
     error ->
-      mse_chat_client:room_not_found(ActorPID, RoomName)
+      mse_chat_client:room_not_found(ConvKey, RoomName)
   end.
 
-handle_create_room(RoomName, ActorPID, State) ->
+handle_create_room(ConvKey, RoomName, State) ->
   io:format("In handle create room~n"),
   RoomDict = State#room_manager_state.rooms,
   RoomExists = orddict:is_key(RoomName, RoomDict),
   if RoomExists ->
-       mse_chat_client:room_create_response(ActorPID, RoomName, false),
-       {noreply, State};
+       mse_chat_client:room_exists(ConvKey, RoomName),
+       State;
      not RoomExists ->
-       {ok, Pid} = mse_chat_room_instance_sup:create_new_room([RoomName]),
-       mse_chat_client:room_create_response(ActorPID, RoomName, true),
-       {noreply, add_room(RoomName, Pid, State)}
+       {ok, Pid} = mse_chat_room_instance_sup:create_new_room(RoomName),
+       mse_chat_client:room_create_success(ConvKey, RoomName),
+       add_room(RoomName, Pid, State)
   end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Callbacks          %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
-init(_Args) ->
-  {ok, fresh_state()}.
+ssactor_init(_Args, _Monitor) ->
+  error_logger:info_msg("CHAT ROOM MANAGER IS UP! PID: ~p, WHEREIS:~p~n", [self(), whereis(mse_chat_room_manager)]),
+  fresh_state().
+
+ssactor_join(_, _, _, State) ->
+  error_logger:info_msg("Chat room manager accepted invitation~n"),
+  {accept, State}.
+
+ssactor_conversation_established("ChatServer", "RoomRegistry", _CID, ConvKey, State) ->
+  error_logger:info_msg("Conv established (room manager)~n"),
+  {ok, State}.
+
+ssactor_handle_message("ChatServer", "RoomRegistry", _, _, "createRoom",
+                       [RoomName], State, ConvKey) ->
+  NewState = handle_create_room(ConvKey, RoomName, State),
+  {ok, NewState};
+ssactor_handle_message("ChatServer", "RoomRegistry", _, _, "lookupRoom",
+                       [RoomName], State, ConvKey) ->
+  handle_get_room(ConvKey, RoomName, State),
+  {ok, State}.
+
+ssactor_subsession_complete(_, _, State, _) -> {ok, State}.
+ssactor_subsession_failed(_, _, State, _) -> {ok, State}.
+ssactor_subsession_setup_failed(_, _, State, _) -> {ok, State}.
+ssactor_become(_, _, _, _, _, State) -> {ok, State}.
+
+ssactor_conversation_error(_PN, _RN, Error, State) ->
+  {ok, State}.
+
+ssactor_conversation_ended(CID, _Reason, State) ->
+  {ok, State}.
 
 handle_call(get_room_names, _From, State) ->
   {reply, State#room_manager_state.rooms}.
 
-handle_cast({create_room, RoomName, ActorPID}, State) ->
-  handle_create_room(RoomName, ActorPID, State);
 handle_cast({get_room, RoomName, ActorPID}, State) ->
   handle_get_room(RoomName, ActorPID, State),
   {noreply, State};
@@ -76,5 +102,6 @@ handle_cast(Msg, State) ->
 handle_info(_Msg, State) -> {noreply, State}.
 
 code_change(_OldVsn, _, State) -> {ok, State}.
-terminate(_Reason, _State) -> ok.
+terminate(Reason, _State) ->
+  error_logger:error_msg("MSE Chat room manager terminating because: ~p~n", [Reason]).
 

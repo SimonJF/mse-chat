@@ -14,7 +14,8 @@ start_link(Port) ->
 
 
 init(Port) ->
-  {ok, ListenSocket} = gen_tcp:listen(Port, [{active, false}]),
+  {ok, ListenSocket} = gen_tcp:listen(Port, [{active, false}, {ip, {127, 0, 0, 1}}]),
+  error_logger:info_msg("Starting TCP Server on Port ~p: ~p~n", [Port, ListenSocket]),
   accept_loop(ListenSocket, 0).
 
 

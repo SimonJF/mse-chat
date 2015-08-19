@@ -1,6 +1,6 @@
 -module(mse_chat_room_instance_sup).
 -behaviour(supervisor).
--define(MAXT, 3600).
+-define(MAXT, 4).
 -define(MAXR, 4).
 -define(SERVER, ?MODULE).
 

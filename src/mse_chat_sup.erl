@@ -22,6 +22,7 @@ start_link() ->
 
 init(_Args) ->
   % Room Supervisor
+  error_logger:info_msg("Initialising root supervisor~n"),
   RoomSupervisor = {
     mse_chat_room_sup,
     {mse_chat_room_sup, start_link, []},
