@@ -61,7 +61,8 @@ handle_info(Msg, State) ->
                              [self(), Msg]),
   {noreply, State}.
 
-terminate(_, _) -> ok.
+terminate(Reason, _) ->
+  error_logger:error_msg("Client registry terminating for reason: ~p~n", [Reason]).
 
 code_change(_OldVsn, State, _) -> {ok, State}.
 

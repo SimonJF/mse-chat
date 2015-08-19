@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 # Client: Connects to server, authenticates, offers choice to either
 # create or join room.
 import string
@@ -52,7 +54,6 @@ class NetworkThread(Thread):
         return received
 
     def handle_message(self, msg):
-        self.client.add_text("In handle message")
         strs = string.split(msg, ":")
         header = strs[0]
         payload = string.join(strs[1:], ":")
