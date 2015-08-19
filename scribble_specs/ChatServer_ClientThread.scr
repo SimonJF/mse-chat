@@ -1,0 +1,54 @@
+module src.com.simonjf.ScribbleExamples.ChatServer.ChatServer_ClientThread;
+
+type <erlang> "string" from "" as Username;
+type <erlang> "string" from "" as Password;
+type <erlang> "tuple" from "" as ClientData;
+type <erlang> "string" from "" as String;
+type <erlang> "string" from "" as RoomName;
+type <erlang> "list" from "" as StringList;
+type <erlang> "string" from "" as PID;
+
+local protocol ChatServer at ClientThread(role ClientThread,role RoomRegistry) {
+	rec ClientChoiceLoop {
+		choice at ClientThread {
+			lookupRoom(RoomName) to RoomRegistry;
+			choice at RoomRegistry {
+				roomPID(RoomName,PID) from RoomRegistry;
+				ClientThread initiates ChatSession( ClientThread , new ChatRoom ) {
+					continue ClientChoiceLoop;
+				}
+			} or {
+				roomNotFound(RoomName) from RoomRegistry;
+			}
+		} or {
+			createRoom(RoomName) to RoomRegistry;
+			choice at RoomRegistry {
+				createRoomSuccess(RoomName) from RoomRegistry;
+			} or {
+				roomExists(RoomName) from RoomRegistry;
+			}
+		} or {
+			listRooms() to RoomRegistry;
+			roomList(StringList) from RoomRegistry;
+		}
+		continue ClientChoiceLoop;
+	}
+}
+
+local protocol ChatSession at ClientThread(role ClientThread,role ChatRoom) {
+	par {
+		rec ClientLoop {
+			choice at ClientThread {
+				outgoingChatMessage(String) to ChatRoom;
+				continue ClientLoop;
+			} or {
+				leaveRoom() to ChatRoom;
+			}
+		}
+	} and {
+		rec ServerLoop {
+			incomingChatMessage(String) from ChatRoom;
+			continue ServerLoop;
+		}
+	}
+}

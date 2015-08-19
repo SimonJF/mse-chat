@@ -1,0 +1,33 @@
+module src.com.simonjf.ScribbleExamples.ChatServer.ChatServer_RoomRegistry;
+
+type <erlang> "string" from "" as Username;
+type <erlang> "string" from "" as Password;
+type <erlang> "tuple" from "" as ClientData;
+type <erlang> "string" from "" as String;
+type <erlang> "string" from "" as RoomName;
+type <erlang> "list" from "" as StringList;
+type <erlang> "string" from "" as PID;
+
+local protocol ChatServer at RoomRegistry(role ClientThread,role RoomRegistry) {
+	rec ClientChoiceLoop {
+		choice at ClientThread {
+			lookupRoom(RoomName) from ClientThread;
+			choice at RoomRegistry {
+				roomPID(RoomName,PID) to ClientThread;
+			} or {
+				roomNotFound(RoomName) to ClientThread;
+			}
+		} or {
+			createRoom(RoomName) from ClientThread;
+			choice at RoomRegistry {
+				createRoomSuccess(RoomName) to ClientThread;
+			} or {
+				roomExists(RoomName) to ClientThread;
+			}
+		} or {
+			listRooms() from ClientThread;
+			roomList(StringList) to ClientThread;
+		}
+		continue ClientChoiceLoop;
+	}
+}

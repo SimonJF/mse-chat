@@ -1,0 +1,27 @@
+module src.com.simonjf.ScribbleExamples.ChatServer.ChatServer_ChatRoom;
+
+type <erlang> "string" from "" as Username;
+type <erlang> "string" from "" as Password;
+type <erlang> "tuple" from "" as ClientData;
+type <erlang> "string" from "" as String;
+type <erlang> "string" from "" as RoomName;
+type <erlang> "list" from "" as StringList;
+type <erlang> "string" from "" as PID;
+
+local protocol ChatSession at ChatRoom(role ClientThread,role ChatRoom) {
+	par {
+		rec ClientLoop {
+			choice at ClientThread {
+				outgoingChatMessage(String) from ClientThread;
+				continue ClientLoop;
+			} or {
+				leaveRoom() from ClientThread;
+			}
+		}
+	} and {
+		rec ServerLoop {
+			incomingChatMessage(String) to ClientThread;
+			continue ServerLoop;
+		}
+	}
+}
