@@ -22,16 +22,6 @@ broadcast_message(ConvKey, ClientName, Message) ->
 %%%%%%%%%%%%%%%%%%%%%%%%
 %%% Internal         %%%
 %%%%%%%%%%%%%%%%%%%%%%%%
-handle_register_client(Name, PID, State) ->
-  RoomMembers = State#room_state.room_members,
-  NewRoomMembers = orddict:store(Name, PID, RoomMembers),
-  State#room_state{room_members=NewRoomMembers}.
-
-handle_deregister_client(Name, State) ->
-  RoomMembers = State#room_state.room_members,
-  NewRoomMembers = orddict:erase(Name, RoomMembers),
-  State#room_state{room_members=NewRoomMembers}.
-
 handle_broadcast_message(ConvKey, SenderName, Message, State) ->
   error_logger:info_msg("Broadcasting chat message ~p from ~p~n", [Message, SenderName]),
   RoomMembers = orddict:to_list(State#room_state.room_members),

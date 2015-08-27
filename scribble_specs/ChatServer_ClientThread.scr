@@ -16,6 +16,8 @@ local protocol ChatServer at ClientThread(role ClientThread,role RoomRegistry) {
 				roomPID(RoomName,PID) from RoomRegistry;
 				ClientThread initiates ChatSession( ClientThread , new ChatRoom ) {
 					continue ClientChoiceLoop;
+				} handle (ParticipantOffline) {
+					continue ClientChoiceLoop;
 				}
 			} or {
 				roomNotFound(RoomName) from RoomRegistry;

@@ -193,7 +193,13 @@ ssactor_become("ChatSession", "ClientThread", chat, [Message],
 
 
 ssactor_subsession_complete(_, _, State, _) -> {ok, State}.
+
+ssactor_subsession_failed(_, "ParticipantOffline", State, _) ->
+  error_logger:info_msg("Chat room died.~n"),
+  % Here, it'd be good to tell the client that this happened.
+  {ok, State};
 ssactor_subsession_failed(_, _, State, _) -> {ok, State}.
+
 ssactor_subsession_setup_failed(_, _, State, _) -> {ok, State}.
 
 handle_call(Msg, _From, State) ->
