@@ -1,4 +1,4 @@
-module src.com.simonjf.ScribbleExamples.ChatServer.ChatServer_ClientThread;
+module src.com.simonjf.ScribbleExamples.ChatServerPaper.ChatServer_ClientThread;
 
 type <erlang> "string" from "" as Username;
 type <erlang> "string" from "" as Password;
@@ -14,11 +14,7 @@ local protocol ChatServer at ClientThread(role ClientThread,role RoomRegistry) {
 			lookupRoom(RoomName) to RoomRegistry;
 			choice at RoomRegistry {
 				roomPID(RoomName,PID) from RoomRegistry;
-				ClientThread initiates ChatSession( ClientThread , new ChatRoom ) {
-					continue ClientChoiceLoop;
-				} handle (ParticipantOffline) {
-					continue ClientChoiceLoop;
-				}
+				ClientThread initiates ChatSession( ClientThread , new ChatRoom );
 			} or {
 				roomNotFound(RoomName) from RoomRegistry;
 			}

@@ -58,7 +58,7 @@ handle_create_room(ConvKey, RoomName, State) ->
 %%% Callbacks          %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 ssactor_init(_Args, _Monitor) ->
-  error_logger:info_msg("CHAT ROOM MANAGER IS UP! PID: ~p, WHEREIS:~p~n", [self(), whereis(mse_chat_room_manager)]),
+  error_logger:info_msg("Chat room manager started.~n", []),
   fresh_state().
 
 ssactor_join(_, _, _, State) ->
@@ -89,12 +89,6 @@ ssactor_conversation_error(_PN, _RN, Error, State) ->
 ssactor_conversation_ended(CID, _Reason, State) ->
   {ok, State}.
 
-handle_call(get_room_names, _From, State) ->
-  {reply, State#room_manager_state.rooms}.
-
-handle_cast({get_room, RoomName, ActorPID}, State) ->
-  handle_get_room(RoomName, ActorPID, State),
-  {noreply, State};
 handle_cast(Msg, State) ->
   error_logger:warning_msg("Unexpected cast: ~p~n", [Msg]),
   {noreply, State}.

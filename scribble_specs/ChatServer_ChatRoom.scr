@@ -1,4 +1,4 @@
-module src.com.simonjf.ScribbleExamples.ChatServer.ChatServer_ChatRoom;
+module src.com.simonjf.ScribbleExamples.ChatServerPaper.ChatServer_ChatRoom;
 
 type <erlang> "string" from "" as Username;
 type <erlang> "string" from "" as Password;
